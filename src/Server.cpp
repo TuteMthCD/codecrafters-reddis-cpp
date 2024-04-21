@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -9,6 +10,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <vector>
 
 int main(int argc, char** argv) {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -52,16 +54,19 @@ int main(int argc, char** argv) {
     std::cout << "Waiting for a client to connect...\n";
 
     auto client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len);
-    if(!client_fd){
+    if(!client_fd) {
         std::cout << "Client error\n";
         return 1;
-    }
-    else
+    } else
         std::cout << "Client connected\n";
 
-    std::string ping_response = "+PONG\r\n";
+    std::vector<uint8_t> buff(1024);
 
-    send(client_fd, ping_response.c_str(), ping_response.size(), 0);
+    while(recv(client_fd, buff.data(), buff.size(), 0) > 0) {
+        std::cout << buff.data() << std::endl;
+        std::string ping_response = "+PONG\r\n";
+        send(client_fd, ping_response.c_str(), ping_response.size(), 0);
+    }
 
     close(server_fd);
 
