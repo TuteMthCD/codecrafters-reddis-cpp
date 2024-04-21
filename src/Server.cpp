@@ -1,5 +1,7 @@
 #include <arpa/inet.h>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <netdb.h>
 #include <string>
@@ -11,19 +13,79 @@
 
 std::string ping_response = "+PONG\r\n";
 
+std::vector<std::string> parseMsg(std::vector<uint8_t> buff) {
+    std::vector<std::string> parsed;
+
+    const std::string separator = "\r\n";
+    std::string s(buff.begin(), buff.end());
+
+    int start = 0, end = 0;
+
+    do {
+        end = s.find(separator, start);                     // obtener la posicion del separator
+        if(end != std::string::npos) {                      // que end no sea el final asi no pusha un str vacio
+            parsed.push_back(s.substr(start, end - start)); // obtenemos el substr hasta el separator
+            start = end + separator.size();                 // pasamos al siguiente paso
+        }
+    } while(end != std::string::npos);
+
+    return parsed;
+}
+
+std::vector<std::string> parseArray(std::vector<std::string> msg) {
+    std::vector<std::string> parsed;
+
+    uint32_t i = 0;
+
+    while(i < msg.size()) {
+        switch(msg[i][0]) { // miro el primer caracter de la array de strings
+        case '$':           // guardo el strings de la array
+            parsed.push_back(msg[i + 1]);
+            i++;
+            break;
+
+        case '*': // reserve de la array
+            parsed.reserve(std::atoi(msg[i].data() + 1));
+            break;
+
+        default: std::cerr << "Character not recognized" << std::endl; break;
+        }
+        i++;
+    }
+
+    return parsed;
+}
+
 void handle_clients(int32_t client_fd) {
-    if(!client_fd) {
-        std::cout << "Client error\n";
-    } else
+    if(!client_fd)
+        std::cerr << "Client error\n";
+    else
         std::cout << "Client connected\n";
 
     std::vector<uint8_t> buff(1024);
 
     while(recv(client_fd, buff.data(), buff.size(), 0) > 0) {
+        std::vector<std::string> parsed;
+        parsed = parseArray(parseMsg(buff));
 
-        // std::cout << buff.data() << std::endl;
+        if(parsed.size() > 0) {
+            if(parsed[0] == "echo") {
+                parsed.erase(parsed.begin());
 
-        send(client_fd, ping_response.c_str(), ping_response.size(), 0);
+                std::string s_echo;
+
+                for(std::string s : parsed) {
+                    s_echo += "$";
+                    s_echo += std::to_string(s.size());
+                    s_echo += "\r\n";
+                    s_echo += s;
+                    s_echo += "\r\n";
+                }
+
+                send(client_fd, s_echo.c_str(), s_echo.size(), 0);
+            } else
+                send(client_fd, ping_response.c_str(), ping_response.size(), 0);
+        }
     }
     close(client_fd);
 }
