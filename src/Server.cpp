@@ -1,4 +1,6 @@
 #include <arpa/inet.h>
+#include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -49,8 +51,17 @@ int main(int argc, char** argv) {
 
     std::cout << "Waiting for a client to connect...\n";
 
-    accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len);
-    std::cout << "Client connected\n";
+    auto client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len);
+    if(!client_fd){
+        std::cout << "Client error\n";
+        return 1;
+    }
+    else
+        std::cout << "Client connected\n";
+
+    std::string ping_response = "+PONG\r\n";
+
+    send(client_fd, ping_response.c_str(), ping_response.size(), 0);
 
     close(server_fd);
 
