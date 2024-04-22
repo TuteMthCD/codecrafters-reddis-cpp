@@ -46,7 +46,7 @@ void handle_clients(int32_t client_fd) {
                 send(client_fd, msg.c_str(), msg.size(), 0);
             }
 
-            if(cmd[0] == "set") {
+            if(cmd[0] == "set") { // cuando escribi esto entendia que era este codigo , ahora solo dios sabe
                 size_t arg_size = cmd.size();
                 if(arg_size >= 3) {
                     set(cmd[1], cmd[2]);
@@ -54,7 +54,6 @@ void handle_clients(int32_t client_fd) {
                     if(arg_size > 4) {
                         if(cmd[3] == "px")
                             ths.push_back(std::thread(removeKey, cmd[1].c_str(), std::atoi(cmd[4].data())));
-                        // removeKey(cmd[1], 100);
                     }
                 } else
                     send(client_fd, redis_error, std::strlen(redis_error), 0);
