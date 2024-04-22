@@ -1,9 +1,11 @@
 #include "includes/redis.h"
 #include <cctype>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <map>
 #include <string>
-
 
 // funciones privadas
 std::vector<std::string> parseMsg(std::vector<uint8_t> buff);
@@ -15,9 +17,12 @@ std::string redis_str(std::string str);
 std::map<std::string, std::string> store;
 void set(std::string key, std::string value);
 std::string get(std::string key);
+void removeKey(std::string key, int ms);
 
 const char* redis_error = "-Error message\r\n";
 const char* redis_ok = "+OK\r\n";
+
+std::vector<std::thread> ths;
 
 
 void handle_clients(int32_t client_fd) {
@@ -41,9 +46,15 @@ void handle_clients(int32_t client_fd) {
             }
 
             if(cmd[0] == "set") {
-                if(cmd.size() >= 3) {
+                size_t arg_size = cmd.size();
+                if(arg_size >= 3) {
                     set(cmd[1], cmd[2]);
                     send(client_fd, redis_ok, std::strlen(redis_ok), 0);
+                    if(arg_size > 4) {
+                        if(cmd[3] == "px")
+                            ths.push_back(std::thread(removeKey, cmd[1].c_str(), std::atoi(cmd[4].data())));
+                        // removeKey(cmd[1], 100);
+                    }
                 } else
                     send(client_fd, redis_error, std::strlen(redis_error), 0);
             }
@@ -79,9 +90,17 @@ std::string get(std::string key) {
     auto value = store.find(key);
 
     if(value == store.end())
-        return "\0";
+        return "$-1\r\n";
 
     return value->second;
+}
+
+void removeKey(std::string key, int ms) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    auto ite = store.find(key);
+    if(ite != store.end()) {
+        store.erase(ite);
+    }
 }
 
 std::vector<std::string> parseMsg(std::vector<uint8_t> buff) {
