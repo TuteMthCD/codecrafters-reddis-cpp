@@ -21,6 +21,7 @@ void removeKey(std::string key, int ms);
 
 const char* redis_error = "-Error message\r\n";
 const char* redis_ok = "+OK\r\n";
+const char* bulk_error = "$-1\r\n";
 
 std::vector<std::thread> ths;
 
@@ -62,8 +63,14 @@ void handle_clients(int32_t client_fd) {
             if(cmd[0] == "get") {
                 if(cmd.size() >= 2) {
                     std::string value = get(cmd[1]);
-                    value = redis_str(value);
+
+                    if(value == "\0")
+                        value = bulk_error;
+                    else
+                        value = redis_str(value);
+
                     send(client_fd, value.c_str(), value.size(), 0);
+
                 } else
                     send(client_fd, redis_error, std::strlen(redis_error), 0);
             }
@@ -90,7 +97,7 @@ std::string get(std::string key) {
     auto value = store.find(key);
 
     if(value == store.end())
-        return "$-1\r\n";
+        return "\0";
 
     return value->second;
 }
