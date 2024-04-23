@@ -1,14 +1,22 @@
 #include <arpa/inet.h>
+#include <cstring>
 #include <iostream>
 #include <netdb.h>
+#include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
 
-
-#include "redis.h"
+#include "includes/redis.h"
 
 
 int main(int argc, char** argv) {
+
+    int port = 6379;
+    for(uint32_t i = 0; i < argc; i++) {
+        if(strcmp("--port", argv[i]) == 0) {
+            port = std::stoi(argv[i+1]);
+        }
+    }
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     std::cout << "Logs from your program will appear here!\n";
 
@@ -31,7 +39,7 @@ int main(int argc, char** argv) {
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(6380);
+    server_addr.sin_port = htons(6379);
 
     if(bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) != 0) {
         std::cerr << "Failed to bind to port 6379\n";
