@@ -203,8 +203,11 @@ void Redis::ReplicaEntryPoint() {
 
     struct sockaddr_in master_addr = { .sin_family = AF_INET, .sin_port = htons(config.port) };
 
+    if(std::strcmp(config.replic_addr, "localhost") == 0)
+        config.replic_addr = (char*)"127.0.0.1";
+
     if(inet_pton(AF_INET, config.replic_addr, &master_addr.sin_addr) <= 0) {
-        std::cerr << "hostname not valid";
+        std::cerr << "Address of replic is not valid";
         return;
     }
 
