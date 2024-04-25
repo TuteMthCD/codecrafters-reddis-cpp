@@ -1,5 +1,10 @@
 #include "includes/redis.h"
+#include <arpa/inet.h>
+#include <cstdio>
 #include <cstring>
+#include <iostream>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 
 const char* redis_error = "-Error message\r\n";
@@ -41,12 +46,15 @@ Redis::Redis(redis_config_t _config) {
 
     std::cout << "Waiting for a client to connect...\n";
 
+    if(config.mode == redis_config_t::SLAVE) {
+        openThreads.push_back(std::thread(&Redis::ReplicaEntryPoint, this));
+    }
 
     while(int32_t client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len)) {
         // create thread and push to vector
         openThreads.push_back(std::thread(&Redis::HandleClients, this, client_fd));
     }
-}
+};
 
 Redis::~Redis() {
     close(server_fd);
@@ -187,4 +195,24 @@ std::vector<std::string> Redis::ParseArray(std::vector<std::string> msg) {
     }
 
     return parsed;
+}
+
+void Redis::ReplicaEntryPoint() {
+
+    int replica_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+    struct sockaddr_in master_addr = { .sin_family = AF_INET, .sin_port = htons(config.port) };
+
+    if(inet_pton(AF_INET, config.replic_addr, &master_addr.sin_addr) <= 0) {
+        std::cerr << "hostname not valid";
+        return;
+    }
+
+    if(connect(replica_fd, (struct sockaddr*)&master_addr, sizeof(master_addr)) < 0) {
+        std ::cerr << "connection to master failed";
+        return;
+    }
+
+    std::string ping = "*1\r\n$4\r\nping\r\n";
+    send(replica_fd, ping.c_str(), ping.length(), 0);
 }

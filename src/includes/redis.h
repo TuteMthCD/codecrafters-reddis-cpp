@@ -45,7 +45,8 @@ class Redis {
     std::string RedisStr(std::string str);
 
     void HandleClients(int32_t client_fd);
+    void ReplicaEntryPoint();
 
-    int server_fd; // server
-    redis_config_t config;
-};
+        int server_fd; // server
+        redis_config_t config;
+    };

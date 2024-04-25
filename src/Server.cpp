@@ -1,5 +1,6 @@
 #include "includes/redis.h"
 #include <arpa/inet.h>
+#include <cstdio>
 #include <cstring>
 
 
@@ -22,6 +23,8 @@ int main(int argc, char** argv) {
     Redis* redis = new Redis(*config);
 
     delete redis;
+
+    getchar();
 
     return 0;
 }
