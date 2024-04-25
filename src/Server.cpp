@@ -19,7 +19,6 @@ int main(int argc, char** argv) {
         };
     }
 
-
     Redis* redis = new Redis(*config);
 
     delete redis;

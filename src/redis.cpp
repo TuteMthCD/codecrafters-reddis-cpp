@@ -34,7 +34,7 @@ Redis::Redis(redis_config_t _config) {
     server_addr.sin_port = htons(config.port);
 
     if(bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) != 0) {
-        std::cerr << "Failed to bind to port 6379\n";
+        std::cerr << "Failed to bind to port" << config.port << std::endl;
     }
 
     int connection_backlog = 5;
@@ -201,7 +201,12 @@ std::vector<std::string> Redis::ParseArray(std::vector<std::string> msg) {
 void Redis::ReplicaEntryPoint() {
     int replica_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-    struct sockaddr_in master_addr = { .sin_family = AF_INET, .sin_port = htons(config.port) };
+    if(replica_fd < 0) {
+        std::cerr << "Failed to create replic" << std::endl;
+        return;
+    }
+
+    struct sockaddr_in master_addr = { .sin_family = AF_INET, .sin_port = htons(config.replic_port) };
 
     if(std::strcmp(config.replic_addr, "localhost") == 0)
         config.replic_addr = (char*)"127.0.0.1";
@@ -211,11 +216,11 @@ void Redis::ReplicaEntryPoint() {
         return;
     }
 
-    if(connect(replica_fd, (struct sockaddr*)&master_addr, sizeof(master_addr)) < 0) {
-        std ::cerr << "connection to master failed" << std::endl;
+    if(connect(replica_fd, (struct sockaddr*)&master_addr, sizeof(master_addr)) == -1) {
+        std ::cerr << "Connection to master failed" << std::endl;
         return;
     } else
-        std::cout << "connection to master ok" << std::endl;
+        std::cout << "Connection to master successfully" << std::endl;
 
     std::string ping = "*1\r\n$4\r\nping\r\n";
     send(replica_fd, ping.c_str(), ping.length(), 0);
