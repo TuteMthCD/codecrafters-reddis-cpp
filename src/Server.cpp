@@ -19,9 +19,9 @@ int main(int argc, char** argv) {
     }
 
 
-    Redis* red_p = new Redis(*config);
+    Redis* redis = new Redis(*config);
 
-    delete red_p;
+    delete redis;
 
     return 0;
 }
