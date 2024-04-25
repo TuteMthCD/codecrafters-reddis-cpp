@@ -106,7 +106,13 @@ void Redis::HandleClients(int32_t client_fd) {
             }
 
             if(cmd[0] == "info") {
-                std::string InfoResponse = RedisStr(config.mode == redis_config_t::MASTER ? "role:master\n" : "role:slave\n");
+                std::string InfoResponse;
+
+                InfoResponse += (config.mode == redis_config_t::MASTER) ? "role:master\n" : "role:slave\n";
+                InfoResponse += "master_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb\n";
+                InfoResponse += "master_repl_offset:0\n";
+
+                InfoResponse = RedisStr(InfoResponse);
                 send(client_fd, InfoResponse.c_str(), InfoResponse.size(), 0);
             }
         }

@@ -29,6 +29,13 @@ class Redis {
     Redis& operator=(const Redis&) = default;
     ~Redis();
 
+    std::vector<std::thread> openThreads;
+
+    // funciones y variables database
+    std::map<std::string, std::string> store;
+    void set(std::string key, std::string value);
+    std::string get(std::string key);
+    void RemoveKey(std::string key, int ms);
 
     private:
     // funciones privadas
@@ -37,15 +44,8 @@ class Redis {
     std::string echoer(std::vector<std::string> msg);
     std::string RedisStr(std::string str);
 
-    // funciones y variables database
-    std::map<std::string, std::string> store;
-    void set(std::string key, std::string value);
-    std::string get(std::string key);
-    void RemoveKey(std::string key, int ms);
     void HandleClients(int32_t client_fd);
 
     int server_fd; // server
     redis_config_t config;
-
-    std::vector<std::thread> openThreads;
 };
