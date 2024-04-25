@@ -4,6 +4,7 @@
 #include <cstring>
 #include <iostream>
 #include <netinet/in.h>
+#include <ostream>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -198,7 +199,6 @@ std::vector<std::string> Redis::ParseArray(std::vector<std::string> msg) {
 }
 
 void Redis::ReplicaEntryPoint() {
-
     int replica_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
     struct sockaddr_in master_addr = { .sin_family = AF_INET, .sin_port = htons(config.port) };
@@ -207,14 +207,15 @@ void Redis::ReplicaEntryPoint() {
         config.replic_addr = (char*)"127.0.0.1";
 
     if(inet_pton(AF_INET, config.replic_addr, &master_addr.sin_addr) <= 0) {
-        std::cerr << "Address of replic is not valid";
+        std::cerr << "Address of replic is not valid" << std::endl;
         return;
     }
 
     if(connect(replica_fd, (struct sockaddr*)&master_addr, sizeof(master_addr)) < 0) {
-        std ::cerr << "connection to master failed";
+        std ::cerr << "connection to master failed" << std::endl;
         return;
-    }
+    } else
+        std::cout << "connection to master ok" << std::endl;
 
     std::string ping = "*1\r\n$4\r\nping\r\n";
     send(replica_fd, ping.c_str(), ping.length(), 0);
