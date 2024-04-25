@@ -10,4 +10,4 @@
 #include <vector>
 
 
-void handle_clients(int32_t client_fd);
+void HandleClients(int32_t client_fd);

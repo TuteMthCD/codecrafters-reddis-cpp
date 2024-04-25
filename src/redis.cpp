@@ -8,16 +8,16 @@
 #include <string>
 
 // funciones privadas
-std::vector<std::string> parseMsg(std::vector<uint8_t> buff);
-std::vector<std::string> parseArray(std::vector<std::string> msg);
+std::vector<std::string> ParseMsg(std::vector<uint8_t> buff);
+std::vector<std::string> ParseArray(std::vector<std::string> msg);
 std::string echoer(std::vector<std::string> msg);
-std::string redis_str(std::string str);
+std::string RedisStr(std::string str);
 
 // funciones y variables database
 std::map<std::string, std::string> store;
 void set(std::string key, std::string value);
 std::string get(std::string key);
-void removeKey(std::string key, int ms);
+void RemoveKey(std::string key, int ms);
 
 const char* redis_error = "-Error message\r\n";
 const char* redis_ok = "+OK\r\n";
@@ -26,7 +26,7 @@ const char* bulk_error = "$-1\r\n";
 std::vector<std::thread> ths;
 
 
-void handle_clients(int32_t client_fd) {
+void HandleClients(int32_t client_fd) {
     if(!client_fd)
         std::cerr << "Client error\n";
     // else
@@ -36,13 +36,13 @@ void handle_clients(int32_t client_fd) {
 
     while(recv(client_fd, buff.data(), buff.size(), 0) > 0) {
         std::vector<std::string> cmd;
-        cmd = parseArray(parseMsg(buff));
+        cmd = ParseArray(ParseMsg(buff));
 
         for(char& c : cmd[0]) c = std::tolower(c);
 
         if(cmd.size() > 0) {
             if(cmd[0] == "echo") {
-                std::string msg = redis_str(cmd[1]);
+                std::string msg = RedisStr(cmd[1]);
                 send(client_fd, msg.c_str(), msg.size(), 0);
             }
 
@@ -53,7 +53,7 @@ void handle_clients(int32_t client_fd) {
                     send(client_fd, redis_ok, std::strlen(redis_ok), 0);
                     if(arg_size > 4) {
                         if(cmd[3] == "px")
-                            ths.push_back(std::thread(removeKey, cmd[1].c_str(), std::atoi(cmd[4].data())));
+                            ths.push_back(std::thread(RemoveKey, cmd[1].c_str(), std::atoi(cmd[4].data())));
                     }
                 } else
                     send(client_fd, redis_error, std::strlen(redis_error), 0);
@@ -66,7 +66,7 @@ void handle_clients(int32_t client_fd) {
                     if(value == "\0")
                         value = bulk_error;
                     else
-                        value = redis_str(value);
+                        value = RedisStr(value);
 
                     send(client_fd, value.c_str(), value.size(), 0);
 
@@ -75,15 +75,20 @@ void handle_clients(int32_t client_fd) {
             }
 
             if(cmd[0] == "ping") {
-                std::string ping_response = "+PONG\r\n";
-                send(client_fd, ping_response.c_str(), ping_response.size(), 0);
+                std::string PingResponse = "+PONG\r\n";
+                send(client_fd, PingResponse.c_str(), PingResponse.size(), 0);
+            }
+
+            if(cmd[0] == "info") {
+                std::string InfoResponse = RedisStr("role:master");
+                send(client_fd, InfoResponse.c_str(), InfoResponse.size(), 0);
             }
         }
     }
     close(client_fd);
 }
 
-std::string redis_str(std::string str) {
+std::string RedisStr(std::string str) {
     std::string msg = "$" + std::to_string(str.size()) + "\r\n" + str + "\r\n"; // solo hace falta devolver el primero
     return msg;
 }
@@ -101,7 +106,7 @@ std::string get(std::string key) {
     return value->second;
 }
 
-void removeKey(std::string key, int ms) {
+void RemoveKey(std::string key, int ms) {
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
     auto ite = store.find(key);
     if(ite != store.end()) {
@@ -109,7 +114,7 @@ void removeKey(std::string key, int ms) {
     }
 }
 
-std::vector<std::string> parseMsg(std::vector<uint8_t> buff) {
+std::vector<std::string> ParseMsg(std::vector<uint8_t> buff) {
     std::vector<std::string> parsed;
 
     const std::string separator = "\r\n";
@@ -128,7 +133,7 @@ std::vector<std::string> parseMsg(std::vector<uint8_t> buff) {
     return parsed;
 }
 
-std::vector<std::string> parseArray(std::vector<std::string> msg) {
+std::vector<std::string> ParseArray(std::vector<std::string> msg) {
     std::vector<std::string> parsed;
 
     uint32_t i = 0;

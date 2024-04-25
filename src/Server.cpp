@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
 
     while(int32_t client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len)) {
         // create thread and push to vector
-        openThreads.push_back(std::thread(handle_clients, client_fd));
+        openThreads.push_back(std::thread(HandleClients, client_fd));
     }
 
 
