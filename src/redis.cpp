@@ -1,32 +1,58 @@
 #include "includes/redis.h"
-#include <cctype>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
 #include <cstring>
-#include <map>
-#include <string>
-
-// funciones privadas
-std::vector<std::string> ParseMsg(std::vector<uint8_t> buff);
-std::vector<std::string> ParseArray(std::vector<std::string> msg);
-std::string echoer(std::vector<std::string> msg);
-std::string RedisStr(std::string str);
-
-// funciones y variables database
-std::map<std::string, std::string> store;
-void set(std::string key, std::string value);
-std::string get(std::string key);
-void RemoveKey(std::string key, int ms);
+#include <sys/types.h>
 
 const char* redis_error = "-Error message\r\n";
 const char* redis_ok = "+OK\r\n";
 const char* bulk_error = "$-1\r\n";
 
-std::vector<std::thread> ths;
+Redis::Redis(redis_config_t _config) {
+
+    config = _config;
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    if(server_fd < 0) {
+        std::cerr << "Failed to create server socket\n";
+    }
+
+    // Since the tester restarts your program quite often, setting SO_REUSEADDR
+    // ensures that we don't run into 'Address already in use' errors
+    int reuse = 1;
+    if(setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        std::cerr << "setsockopt failed\n";
+    }
+
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(config.port);
+
+    if(bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) != 0) {
+        std::cerr << "Failed to bind to port 6379\n";
+    }
+
+    int connection_backlog = 5;
+    if(listen(server_fd, connection_backlog) != 0) {
+        std::cerr << "listen failed\n";
+    }
+
+    struct sockaddr_in client_addr;
+    int client_addr_len = sizeof(client_addr);
+
+    std::cout << "Waiting for a client to connect...\n";
 
 
-void HandleClients(int32_t client_fd) {
+    while(int32_t client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len)) {
+        // create thread and push to vector
+        openThreads.push_back(std::thread(&Redis::HandleClients, this, client_fd));
+    }
+}
+
+Redis::~Redis() {
+    close(server_fd);
+}
+
+void Redis::HandleClients(int32_t client_fd) {
     if(!client_fd)
         std::cerr << "Client error\n";
     // else
@@ -53,7 +79,7 @@ void HandleClients(int32_t client_fd) {
                     send(client_fd, redis_ok, std::strlen(redis_ok), 0);
                     if(arg_size > 4) {
                         if(cmd[3] == "px")
-                            ths.push_back(std::thread(RemoveKey, cmd[1].c_str(), std::atoi(cmd[4].data())));
+                            openThreads.push_back(std::thread(&Redis::RemoveKey, this, cmd[1].c_str(), std::atoi(cmd[4].data())));
                     }
                 } else
                     send(client_fd, redis_error, std::strlen(redis_error), 0);
@@ -80,7 +106,7 @@ void HandleClients(int32_t client_fd) {
             }
 
             if(cmd[0] == "info") {
-                std::string InfoResponse = RedisStr("role:master");
+                std::string InfoResponse = RedisStr(config.mode == redis_config_t::MASTER ? "role:master\n" : "role:slave\n");
                 send(client_fd, InfoResponse.c_str(), InfoResponse.size(), 0);
             }
         }
@@ -88,16 +114,16 @@ void HandleClients(int32_t client_fd) {
     close(client_fd);
 }
 
-std::string RedisStr(std::string str) {
+std::string Redis::RedisStr(std::string str) {
     std::string msg = "$" + std::to_string(str.size()) + "\r\n" + str + "\r\n"; // solo hace falta devolver el primero
     return msg;
 }
 
-void set(std::string key, std::string value) {
+void Redis::set(std::string key, std::string value) {
     store.insert(std::pair<std::string, std::string>(key, value));
 }
 
-std::string get(std::string key) {
+std::string Redis::get(std::string key) {
     auto value = store.find(key);
 
     if(value == store.end())
@@ -106,7 +132,7 @@ std::string get(std::string key) {
     return value->second;
 }
 
-void RemoveKey(std::string key, int ms) {
+void Redis::RemoveKey(std::string key, int ms) {
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
     auto ite = store.find(key);
     if(ite != store.end()) {
@@ -114,7 +140,7 @@ void RemoveKey(std::string key, int ms) {
     }
 }
 
-std::vector<std::string> ParseMsg(std::vector<uint8_t> buff) {
+std::vector<std::string> Redis::ParseMsg(std::vector<uint8_t> buff) {
     std::vector<std::string> parsed;
 
     const std::string separator = "\r\n";
@@ -133,7 +159,7 @@ std::vector<std::string> ParseMsg(std::vector<uint8_t> buff) {
     return parsed;
 }
 
-std::vector<std::string> ParseArray(std::vector<std::string> msg) {
+std::vector<std::string> Redis::ParseArray(std::vector<std::string> msg) {
     std::vector<std::string> parsed;
 
     uint32_t i = 0;
