@@ -44,9 +44,10 @@ class Redis {
     std::string echoer(std::vector<std::string> msg);
     std::string RedisStr(std::string str);
 
+    void Listener(uint32_t server_fd);
     void HandleClients(int32_t client_fd);
     void ReplicaEntryPoint();
 
-        int server_fd; // server
-        redis_config_t config;
-    };
+    int server_fd; // server
+    redis_config_t config;
+};

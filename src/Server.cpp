@@ -21,9 +21,10 @@ int main(int argc, char** argv) {
 
     Redis* redis = new Redis(*config);
 
+    getchar();
+
     delete redis;
 
-    getchar();
 
     return 0;
 }

@@ -1,16 +1,20 @@
 #include "includes/redis.h"
 #include <arpa/inet.h>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <iterator>
 #include <netinet/in.h>
 #include <ostream>
+#include <string>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 
-const char* redis_error = "-Error message\r\n";
-const char* redis_ok = "+OK\r\n";
-const char* bulk_error = "$-1\r\n";
+#define REDIS_ERROR (const char*)"-Error message\r\n"
+#define REDIS_OK (const char*)"+OK\r\n"
+#define REDIS_BULK_ERROR (const char*)"$-1\r\n"
 
 Redis::Redis(redis_config_t _config) {
 
@@ -42,23 +46,27 @@ Redis::Redis(redis_config_t _config) {
         std::cerr << "listen failed\n";
     }
 
-    struct sockaddr_in client_addr;
-    int client_addr_len = sizeof(client_addr);
 
     std::cout << "Waiting for a client to connect...\n";
 
-    if(config.mode == redis_config_t::SLAVE) {
+    if(config.mode == redis_config_t::SLAVE)
         openThreads.push_back(std::thread(&Redis::ReplicaEntryPoint, this));
-    }
+
+    openThreads.push_back(std::thread(&Redis::Listener, this, server_fd));
+};
+
+Redis::~Redis() {
+    close(server_fd);
+}
+
+void Redis::Listener(uint32_t server_fd) {
+    struct sockaddr_in client_addr;
+    int client_addr_len = sizeof(client_addr);
 
     while(int32_t client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len)) {
         // create thread and push to vector
         openThreads.push_back(std::thread(&Redis::HandleClients, this, client_fd));
     }
-};
-
-Redis::~Redis() {
-    close(server_fd);
 }
 
 void Redis::HandleClients(int32_t client_fd) {
@@ -85,13 +93,13 @@ void Redis::HandleClients(int32_t client_fd) {
                 size_t arg_size = cmd.size();
                 if(arg_size >= 3) {
                     set(cmd[1], cmd[2]);
-                    send(client_fd, redis_ok, std::strlen(redis_ok), 0);
+                    send(client_fd, REDIS_OK, std::strlen(REDIS_OK), 0);
                     if(arg_size > 4) {
                         if(cmd[3] == "px")
                             openThreads.push_back(std::thread(&Redis::RemoveKey, this, cmd[1].c_str(), std::atoi(cmd[4].data())));
                     }
                 } else
-                    send(client_fd, redis_error, std::strlen(redis_error), 0);
+                    send(client_fd, REDIS_ERROR, std::strlen(REDIS_ERROR), 0);
             }
 
             if(cmd[0] == "get") {
@@ -99,14 +107,14 @@ void Redis::HandleClients(int32_t client_fd) {
                     std::string value = get(cmd[1]);
 
                     if(value == "\0")
-                        value = bulk_error;
+                        value = REDIS_BULK_ERROR;
                     else
                         value = RedisStr(value);
 
                     send(client_fd, value.c_str(), value.size(), 0);
 
                 } else
-                    send(client_fd, redis_error, std::strlen(redis_error), 0);
+                    send(client_fd, REDIS_ERROR, std::strlen(REDIS_ERROR), 0);
             }
 
             if(cmd[0] == "ping") {
@@ -123,6 +131,10 @@ void Redis::HandleClients(int32_t client_fd) {
 
                 InfoResponse = RedisStr(InfoResponse);
                 send(client_fd, InfoResponse.c_str(), InfoResponse.size(), 0);
+            }
+
+            if(cmd[0] == "replconf") {
+                send(client_fd, REDIS_OK, std::strlen(REDIS_OK), 0);
             }
         }
     }
@@ -190,7 +202,13 @@ std::vector<std::string> Redis::ParseArray(std::vector<std::string> msg) {
             parsed.reserve(std::atoi(msg[i].data() + 1));
             break;
 
-        default: std::cerr << "Character not recognized" << std::endl; break;
+
+        case '+':
+            parsed.push_back(msg[i].substr(1, msg[i].size()));
+            i++;
+            break;
+
+        default: std::cerr << "Character not recognized -> " << msg[i] << std::endl; break;
         }
         i++;
     }
@@ -222,6 +240,24 @@ void Redis::ReplicaEntryPoint() {
     } else
         std::cout << "Connection to master successfully" << std::endl;
 
+    std::vector<uint8_t> buff(256);
     std::string ping = "*1\r\n$4\r\nping\r\n";
     send(replica_fd, ping.c_str(), ping.length(), 0);
+
+    while(recv(replica_fd, buff.data(), buff.size(), 0)) {
+        // leo lo que llega
+        std::vector<std::string> response = ParseArray(ParseMsg(buff));
+
+        for(std::string cmd : response) {
+            if(cmd == "PONG") {
+                std::string rta = "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n";
+                send(replica_fd, rta.data(), rta.size(), 0);
+                rta = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
+                send(replica_fd, rta.data(), rta.size(), 0);
+            }
+        }
+
+        // for(char c : buff) { printf("%c", c); }
+        // printf("\n");
+    }
 }
